@@ -1,3 +1,8 @@
+> **This is the Quantic Dynamics DOOM (2016) fork of MoltenVK.**
+> It adds three game-specific hacks so DOOM (2016) runs on Apple Silicon (M1–M4) through NotProton / CrossOver.
+> **Install guide: [DOOM2016.md](DOOM2016.md)** · Prebuilt library: [Releases](https://github.com/quanticdynamics/MoltenVK-DOOM2016/releases/latest)
+> Unofficial; not affiliated with Khronos. Everything below is the upstream MoltenVK README.
+
 <a class="site-logo" href="https://github.com/KhronosGroup/MoltenVK" title="MoltenVK">
 	<img src="Docs/images/MoltenVK-Logo-Banner.png" alt="MoltenVK" style="width:256px;height:auto">
 </a><br><br>
