@@ -1,0 +1,62 @@
+name: DOOM2016 release
+
+# Builds the patched libMoltenVK.dylib (universal: x86_64 + arm64) with CMake.
+# Pushing a tag named doom2016-* publishes it as a GitHub Release.
+on:
+  push:
+    tags: [ "doom2016-*" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tool versions
+        run: |
+          xcodebuild -version || true
+          cmake --version || brew install cmake
+
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_OSX_ARCHITECTURES="x86_64;arm64"
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0
+
+      - name: Build
+        run: cmake --build build -j "$(sysctl -n hw.ncpu)"
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp -L build/MoltenVK/libMoltenVK.dylib dist/libMoltenVK.dylib
+          lipo -info dist/libMoltenVK.dylib
+          lipo dist/libMoltenVK.dylib -verify_arch x86_64 arm64
+          ( cd dist && shasum -a 256 libMoltenVK.dylib > libMoltenVK.dylib.sha256 && cat libMoltenVK.dylib.sha256 )
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: libMoltenVK-DOOM2016
+          path: dist/*
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > notes.md <<'EOF'
+          Patched MoltenVK that lets **DOOM (2016)** run on Apple Silicon (M1–M4) through NotProton / CrossOver.
+
+          Universal `libMoltenVK.dylib` (x86_64 + arm64). Installation steps: [DOOM2016.md](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/DOOM2016.md)
+
+          Unofficial, game-specific hacks — not affiliated with Khronos, CodeWeavers, id Software or Bethesda.
+          EOF
+          gh release create "${GITHUB_REF_NAME}" dist/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "DOOM 2016 MoltenVK (${GITHUB_REF_NAME})" \
+            --notes-file notes.md
