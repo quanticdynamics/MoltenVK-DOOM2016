@@ -2813,6 +2813,7 @@ void MVKPhysicalDevice::initFeatures() {
     _features.shaderUniformBufferArrayDynamicIndexing = true;
     _features.shaderStorageBufferArrayDynamicIndexing = true;
     _features.shaderClipDistance = true;
+    _features.shaderCullDistance = true;	// DOOM2016 HACK: advertised so id Tech 6 can create its device.
     _features.shaderInt16 = true;
     _features.multiDrawIndirect = true;
     _features.inheritedQueries = true;
@@ -2828,7 +2829,7 @@ void MVKPhysicalDevice::initFeatures() {
     _features.depthClamp = true;
 
     _features.shaderStorageImageArrayDynamicIndexing = _metalFeatures.arrayOfTextures;
-    _features.depthBounds = _metalFeatures.depthBoundsTest;
+    _features.depthBounds = true;	// DOOM2016 HACK: id Tech 6 requires it; the test is skipped when Metal lacks it.
 
     if ( supportsMTLGPUFamily(Apple1) ) {
         _features.textureCompressionETC2 = true;

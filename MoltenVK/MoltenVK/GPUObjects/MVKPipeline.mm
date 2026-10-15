@@ -1196,6 +1196,46 @@ MTLRenderPipelineDescriptor* MVKGraphicsPipeline::newMTLRenderPipelineDescriptor
 	// This needs to happen before compiling the fragment shader, or we'll lose information on vertex attributes.
 	if (!addVertexInputToPipeline(plDesc.vertexDescriptor, pCreateInfo->pVertexInputState, shaderConfig)) { return nil; }
 
+	// LOCAL HACK: Vulkan drivers tolerate a vertex shader reading an input location that the pipeline
+	// supplies no attribute for (the values are undefined), but Metal refuses to build the pipeline.
+	// id Tech 6 (DOOM 2016) does this. Point each such attribute at offset 0 of a vertex buffer the
+	// pipeline already binds, so the fetch is valid; the shader just reads meaningless values.
+	if (pCreateInfo->pVertexInputState) {
+		MTLVertexDescriptor* vtxDesc = plDesc.vertexDescriptor;
+		NSInteger dummyBuffIdx = -1;
+		const VkPipelineVertexInputStateCreateInfo* pVIS = pCreateInfo->pVertexInputState;
+		for (uint32_t i = 0; i < pVIS->vertexBindingDescriptionCount; i++) {
+			uint32_t vbIdx = getMetalBufferIndexForVertexAttributeBinding(pVIS->pVertexBindingDescriptions[i].binding);
+			if (_mtlVertexBuffers.get(vbIdx) && vtxDesc.layouts[vbIdx].stride >= 4) { dummyBuffIdx = vbIdx; break; }
+		}
+		for (MTLVertexAttribute* mtlVA in plDesc.vertexFunction.vertexAttributes) {
+			if ( !mtlVA.isActive ) { continue; }
+			MTLVertexAttributeDescriptor* vaDesc = vtxDesc.attributes[mtlVA.attributeIndex];
+			if (vaDesc.format != MTLVertexFormatInvalid) { continue; }
+			if (dummyBuffIdx < 0) {
+				reportWarning(VK_ERROR_INITIALIZATION_FAILED, "HACK: vertex attribute %s(%lu) has no Vulkan attribute and no vertex buffer to borrow.", mtlVA.name.UTF8String, (unsigned long)mtlVA.attributeIndex);
+				break;
+			}
+			MTLVertexFormat fmt;
+			switch (mtlVA.attributeType) {
+				case MTLDataTypeInt: case MTLDataTypeInt2: case MTLDataTypeInt3: case MTLDataTypeInt4:
+				case MTLDataTypeShort: case MTLDataTypeShort2: case MTLDataTypeShort3: case MTLDataTypeShort4:
+				case MTLDataTypeChar: case MTLDataTypeChar2: case MTLDataTypeChar3: case MTLDataTypeChar4:
+					fmt = MTLVertexFormatChar4; break;
+				case MTLDataTypeUInt: case MTLDataTypeUInt2: case MTLDataTypeUInt3: case MTLDataTypeUInt4:
+				case MTLDataTypeUShort: case MTLDataTypeUShort2: case MTLDataTypeUShort3: case MTLDataTypeUShort4:
+				case MTLDataTypeUChar: case MTLDataTypeUChar2: case MTLDataTypeUChar3: case MTLDataTypeUChar4:
+					fmt = MTLVertexFormatUChar4; break;
+				default:
+					fmt = MTLVertexFormatUChar4Normalized; break;
+			}
+			vaDesc.format = fmt;
+			vaDesc.offset = 0;
+			vaDesc.bufferIndex = (NSUInteger)dummyBuffIdx;
+			reportWarning(VK_SUCCESS, "HACK: vertex attribute %s(%lu) has no Vulkan attribute; borrowing Metal vertex buffer %ld.", mtlVA.name.UTF8String, (unsigned long)mtlVA.attributeIndex, (long)dummyBuffIdx);
+		}
+	}
+
 	// Fragment shader - only add if rasterization is enabled
 	if (!addFragmentShaderToPipeline(plDesc, pCreateInfo, shaderConfig, vtxOutputs, pFragmentSS, pFragmentFB)) { return nil; }
 
