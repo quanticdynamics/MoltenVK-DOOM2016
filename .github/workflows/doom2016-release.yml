@@ -1,10 +1,11 @@
 name: DOOM2016 release
 
 # Builds the patched libMoltenVK.dylib (universal: x86_64 + arm64) with CMake.
-# Pushing a tag named doom2016-* publishes it as a GitHub Release.
+# Publishing a GitHub Release attaches the library and its checksum to it.
+# Running it manually (Actions tab) just produces a downloadable build artifact.
 on:
-  push:
-    tags: [ "doom2016-*" ]
+  release:
+    types: [ published ]
   workflow_dispatch:
 
 permissions:
@@ -44,19 +45,8 @@ jobs:
           name: libMoltenVK-DOOM2016
           path: dist/*
 
-      - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Attach to release
+        if: github.event_name == 'release'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          cat > notes.md <<'EOF'
-          Patched MoltenVK that lets **DOOM (2016)** run on Apple Silicon (M1–M4) through NotProton / CrossOver.
-
-          Universal `libMoltenVK.dylib` (x86_64 + arm64). Installation steps: [DOOM2016.md](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/DOOM2016.md)
-
-          Unofficial, game-specific hacks — not affiliated with Khronos, CodeWeavers, id Software or Bethesda.
-          EOF
-          gh release create "${GITHUB_REF_NAME}" dist/* \
-            --repo "${GITHUB_REPOSITORY}" \
-            --title "DOOM 2016 MoltenVK (${GITHUB_REF_NAME})" \
-            --notes-file notes.md
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/* --clobber --repo "${GITHUB_REPOSITORY}"
