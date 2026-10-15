@@ -67,8 +67,12 @@ curl -fsSL            -o "$TMP/libMoltenVK.dylib.sha256" "$DOWNLOAD/libMoltenVK.
 ( cd "$TMP" && shasum -a 256 -c libMoltenVK.dylib.sha256 >/dev/null ) \
   || die "Checksum mismatch: the download is corrupted. Nothing was changed."
 ok "download verified"
-lipo "$TMP/libMoltenVK.dylib" -verify_arch x86_64 arm64 2>/dev/null \
-  || die "Downloaded file isn't a universal (x86_64 + arm64) library. Nothing was changed."
+# Architecture check: `lipo -archs` where available, else `file` (some setups have a non-Apple lipo first in PATH).
+ARCHS="$( { /usr/bin/lipo -archs "$TMP/libMoltenVK.dylib" || lipo -archs "$TMP/libMoltenVK.dylib" || file -b "$TMP/libMoltenVK.dylib"; } 2>/dev/null || true)"
+case "$ARCHS" in
+  *x86_64*arm64*|*arm64*x86_64*) ;;
+  *) die "Downloaded file isn't a universal (x86_64 + arm64) library (found: ${ARCHS:-unknown}). Nothing was changed." ;;
+esac
 xattr -d com.apple.quarantine "$TMP/libMoltenVK.dylib" 2>/dev/null || true
 
 say "Installing into NotProton's CrossOver runner"
